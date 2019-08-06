@@ -9,25 +9,32 @@ src_dir = os.path.dirname(inspect.getfile(inspect.currentframe()))
 arch_dir = '../lib/x64' if sys.maxsize > 2**32 else '../lib/x86'
 sys.path.insert(0, os.path.abspath(os.path.join(src_dir, arch_dir)))
 import Leap
-
+mavros.set_namespace()
 signal = OverrideRCIn()
 
 current_state = State()
 def state_cb(state):
     global current_state
     current_state = state
-
+kill=1500
+mode=1500
 rc_signal = RCIn()
 def rc_cb(rcin):
     global rc_signal
     rc_signal = rcin
+    global kill 
+    global mode
     kill = rc_signal.channels[4]
     mode = rc_signal.channels[5]
 
 state_sub = rospy.Subscriber(mavros.get_topic('state'), State, state_cb)
 set_mode_client = rospy.ServiceProxy(mavros.get_topic('set_mode'), SetMode)
-rc_sub = rospy.Subscriber('mavros/rc/in', 10, rc_cb)
+rc_sub = rospy.Subscriber('mavros/rc/in',RCIn ,10, rc_cb)
 rcpub = rospy.Publisher('mavros/rc/override', OverrideRCIn, queue_size=10)
+pitch = 0.0
+roll = 0.0
+yaw = 0.0
+strength = 0.0
 
 class SampleListener(Leap.Listener):
 
@@ -41,10 +48,15 @@ class SampleListener(Leap.Listener):
         position = hands.palm_position
         velocity = hands.palm_velocity
         direction = hands.direction
-        global pitch = hands.direction.pitch
-        global yaw = hands.direction.yaw
-        global roll = hands.palm_normal.roll
-        global strength = hands.grab_strength
+        global pitch
+        global yaw 
+        global roll
+        global strength 
+        sphere_center = hands.sphere_center
+	pitch = hands.direction.pitch
+        yaw = hands.direction.yaw
+        roll = hands.palm_normal.roll
+        strength = hands.grab_strength
         sphere_center = hands.sphere_center
         #print "Frame id: %d, timestamp: %d, hands: %d, fingers: %d,Pointables : %d" % (
         #     frame.id, frame.timestamp, len(frame.hands), len(frame.fingers),len(frame.pointables))
@@ -81,8 +93,10 @@ class SampleListener(Leap.Listener):
 
 def main():
     # Create a sample listener and controller
+    rospy.init_node('offb_node', anonymous=True)
     listener = SampleListener()
     controller = Leap.Controller()
+    print("pass 1")
 
     # Have the sample listener receive events from the controller
     controller.add_listener(listener)
@@ -91,11 +105,13 @@ def main():
     # Keep on trying to connect if not connected
     while not current_state.connected:
         rate.sleep()
-
+    print("pass 2")
     last_request = rospy.get_rostime()
-    while not rospy.is_shutdown():
+    prev_state = current_state
+    while not rospy.is_shutdown:
         #now = rospy.get_rostime()
-        signal.channels = [1500, 1500, 1500, 1500, kill, mode, 1500, 1500]
+	print("pass 3")
+        signal.channels = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
         if current_state.mode != "POSCTL" and strength>0.8 :
             set_mode_client(base_mode=0, custom_mode="POSCTL")
             #last_request = now
@@ -114,6 +130,7 @@ def main():
                 print("yaw_left")
                 
         rcpub.publish(signal)
+	
 
         # older versions of PX4 always return success==True, so better to check Status instead
         if prev_state.armed != current_state.armed:
@@ -121,9 +138,8 @@ def main():
         if prev_state.mode != current_state.mode:
             rospy.loginfo("Current mode: %s" % current_state.mode)
         prev_state = current_state
-
+	print("pass 4")
         # Update timestamp and publish pose
-        pose.header.stamp = rospy.Time.now()
         rate.sleep()
 
     try:
