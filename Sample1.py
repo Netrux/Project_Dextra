@@ -37,26 +37,31 @@ class SampleListener(Leap.Listener):
         #print "position: %d, velocity: %d, direction: %d " % (
         #     position, velocity, direction )
 
-        if(strength > 0.8):
-            print("postion_hold_mode")
-        else:
-            print("stabilized flight mode \n")
-            if(roll > 0.5):
-                print("roll_right")
-            if(roll < -0.5):
-                print("roll_left")
-            if(yaw > 0.5):
-                print("yaw_right")
-            if(yaw < -0.5):
-                print("yaw_left")
-            if(sphere_center[1] > position[1] + 70):
-                print("up")
-            if(sphere_center[1] < position[1] -30):
-                print("down")
-            if(sphere_center[2] - 30 > position[2]):
-                print("pitch_backward")
-            if(sphere_center[2] + 30 < position[2] ):
-                print("pitch_forward")
+        if hands.is_valid:
+            if(strength > 0.8):
+                print("postion_hold_mode")
+            else:
+                print("stabilized flight mode \n")
+                if(roll > 0.5 and roll < 2):
+                    print("roll_right")
+                if(roll < -0.5 and roll > -2):
+                    print("roll_left")
+                if(yaw > 0.5 and yaw < 2):
+                    print("yaw_right")
+                if(yaw < -0.5 and yaw > -2):
+                    print("yaw_left")
+                if(position[1] > 400):
+                    print("up")
+                if(position[1] < 130 and position[1] > 10):
+                    print("down")
+                if(position[2] > 80):
+                    print("pitch_backward")
+                if(position[2] < -80):
+                    print("pitch_forward")
+
+        else :
+            strenght = 1
+
 
 
 
