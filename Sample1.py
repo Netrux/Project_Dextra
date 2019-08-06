@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import rospy
 import mavros
-from mavros.msg import State
-from mavros.srv import CommandBool, SetMode
+from mavros_msgs.msg import State, OverrideRCIn, RCIn
+from mavros_msgs.srv import CommandBool, SetMode
 
 import os, sys, inspect, thread, time
 src_dir = os.path.dirname(inspect.getfile(inspect.currentframe()))
@@ -10,12 +10,23 @@ arch_dir = '../lib/x64' if sys.maxsize > 2**32 else '../lib/x86'
 sys.path.insert(0, os.path.abspath(os.path.join(src_dir, arch_dir)))
 import Leap
 
+signal = OverrideRCIn()
+
 current_state = State()
 def state_cb(state):
     global current_state
     current_state = state
 
+rc_signal = RCIn()
+def rc_cb(rcin):
+    global rc_signal
+    rc_signal = rcin
+    kill = rc_signal.channels[4]
+    mode = rc_signal.channels[5]
+
+state_sub = rospy.Subscriber(mavros.get_topic('state'), State, state_cb)
 set_mode_client = rospy.ServiceProxy(mavros.get_topic('set_mode'), SetMode)
+rc_sub = rospy.Subscriber('mavros/rc/in', 10, rc_cb)
 
 class SampleListener(Leap.Listener):
 
@@ -83,17 +94,22 @@ def main():
     last_request = rospy.get_rostime()
     while not rospy.is_shutdown():
         #now = rospy.get_rostime()
+        signal.channels = [1500, 1500, 1500, 1500, kill, mode, 1500, 1500]
         if current_state.mode != "POSCTL" and strength>0.8 :
             set_mode_client(base_mode=0, custom_mode="POSCTL")
             #last_request = now
         else:
             if(roll > 0.5):
+                signal.channels[0] = 1300
                 print("roll_left")
             elif(roll < -0.5):
+                signal.channels[0] = 1700
                 print("roll_right")
             if(yaw > 0.5):
+                signal.channels[3] = 1700
                 print("yaw_right")
             elif(yaw < -0.5):
+                signal.channels[3] = 1300
                 print("yaw_left")
 
         # older versions of PX4 always return success==True, so better to check Status instead
