@@ -15,13 +15,15 @@ def state_cb(state):
     global current_state
     current_state = state
 
+set_mode_client = rospy.ServiceProxy(mavros.get_topic('set_mode'), SetMode)
+
 class SampleListener(Leap.Listener):
 
     def on_connect(self, controller):
         print("Connected")
 
     def on_frame(self, controller):
-        print "Frame available"
+        print("Frame available")
         frame = controller.frame()
         hands = frame.hands.rightmost
         position = hands.palm_position
@@ -29,8 +31,8 @@ class SampleListener(Leap.Listener):
         direction = hands.direction
         global pitch = hands.direction.pitch
         global yaw = hands.direction.yaw
-        roll = hands.palm_normal.roll
-        strength = hands.grab_strength
+        global roll = hands.palm_normal.roll
+        global strength = hands.grab_strength
         sphere_center = hands.sphere_center
         #print "Frame id: %d, timestamp: %d, hands: %d, fingers: %d,Pointables : %d" % (
         #     frame.id, frame.timestamp, len(frame.hands), len(frame.fingers),len(frame.pointables))
@@ -60,8 +62,7 @@ class SampleListener(Leap.Listener):
                     print("pitch_forward")
 
         else :
-            strenght = 1
-
+            strength = 1
 
 
 
@@ -75,20 +76,25 @@ def main():
     controller.add_listener(listener)
 
     rate = rospy.Rate(20.0)
-    #keep on trying to connect if not connected
+    # Keep on trying to connect if not connected
     while not current_state.connected:
         rate.sleep()
 
     last_request = rospy.get_rostime()
     while not rospy.is_shutdown():
-        now = rospy.get_rostime()
-        if current_state.mode != "OFFBOARD" and (now - last_request > rospy.Duration(5.)):
-            set_mode_client(base_mode=0, custom_mode="OFFBOARD")
-            last_request = now
+        #now = rospy.get_rostime()
+        if current_state.mode != "POSCTL" and strength>0.8 :
+            set_mode_client(base_mode=0, custom_mode="POSCTL")
+            #last_request = now
         else:
-            if not current_state.armed and (now - last_request > rospy.Duration(5.)):
-               arming_client(True)
-               last_request = now
+            if(roll > 0.5):
+                print("roll_left")
+            elif(roll < -0.5):
+                print("roll_right")
+            if(yaw > 0.5):
+                print("yaw_right")
+            elif(yaw < -0.5):
+                print("yaw_left")
 
         # older versions of PX4 always return success==True, so better to check Status instead
         if prev_state.armed != current_state.armed:
@@ -99,7 +105,6 @@ def main():
 
         # Update timestamp and publish pose
         pose.header.stamp = rospy.Time.now()
-        local_pos_pub.publish(pose)
         rate.sleep()
 
     try:
