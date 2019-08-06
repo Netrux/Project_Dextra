@@ -27,6 +27,7 @@ def rc_cb(rcin):
 state_sub = rospy.Subscriber(mavros.get_topic('state'), State, state_cb)
 set_mode_client = rospy.ServiceProxy(mavros.get_topic('set_mode'), SetMode)
 rc_sub = rospy.Subscriber('mavros/rc/in', 10, rc_cb)
+rcpub = rospy.Publisher('mavros/rc/override', OverrideRCIn, queue_size=10)
 
 class SampleListener(Leap.Listener):
 
@@ -111,6 +112,8 @@ def main():
             elif(yaw < -0.5):
                 signal.channels[3] = 1300
                 print("yaw_left")
+                
+        rcpub.publish(signal)
 
         # older versions of PX4 always return success==True, so better to check Status instead
         if prev_state.armed != current_state.armed:
