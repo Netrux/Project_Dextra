@@ -2,7 +2,7 @@
 import rospy
 import mavros
 from mavros_msgs.msg import State, OverrideRCIn, RCIn
-from mavros_msgs.srv import CommandBool, SetMode
+from mavros_msgs.srv import SetMode
 
 import os, sys, inspect, thread, time
 src_dir = os.path.dirname(inspect.getfile(inspect.currentframe()))
@@ -22,7 +22,7 @@ rc_signal = RCIn()
 def rc_cb(rcin):
     global rc_signal
     rc_signal = rcin
-    global kill 
+    global kill
     global mode
     kill = rc_signal.channels[4]
     mode = rc_signal.channels[5]
@@ -35,6 +35,7 @@ pitch = 0.0
 roll = 0.0
 yaw = 0.0
 strength = 0.0
+position = [0,0,0]
 
 class SampleListener(Leap.Listener):
 
@@ -49,11 +50,12 @@ class SampleListener(Leap.Listener):
         velocity = hands.palm_velocity
         direction = hands.direction
         global pitch
-        global yaw 
+        global yaw
         global roll
-        global strength 
+        global strength
+        global position
         sphere_center = hands.sphere_center
-	pitch = hands.direction.pitch
+	   # pitch = hands.direction.pitch
         yaw = hands.direction.yaw
         roll = hands.palm_normal.roll
         strength = hands.grab_strength
@@ -101,36 +103,44 @@ def main():
     # Have the sample listener receive events from the controller
     controller.add_listener(listener)
 
-    rate = rospy.Rate(20.0)
+    rate = rospy.Rate(70.0)
     # Keep on trying to connect if not connected
     while not current_state.connected:
         rate.sleep()
     print("pass 2")
     last_request = rospy.get_rostime()
     prev_state = current_state
-    while not rospy.is_shutdown:
-        #now = rospy.get_rostime()
-	print("pass 3")
+    while not rospy.is_shutdown():
         signal.channels = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
+        print("rospy is active")
         if current_state.mode != "POSCTL" and strength>0.8 :
             set_mode_client(base_mode=0, custom_mode="POSCTL")
-            #last_request = now
+            print("asked for postion_hold_mode")
         else:
-            if(roll > 0.5):
+            if(roll > 0.5 and roll < 2):
                 signal.channels[0] = 1300
-                print("roll_left")
-            elif(roll < -0.5):
+                print("roll_left published")
+            elif(roll < -0.5 and roll > -2):
                 signal.channels[0] = 1700
-                print("roll_right")
-            if(yaw > 0.5):
+                print("roll_right published")
+            if(yaw > 0.5 and yaw < 2):
                 signal.channels[3] = 1700
-                print("yaw_right")
-            elif(yaw < -0.5):
+                print("yaw_right published")
+            elif(yaw < -0.5 and yaw > -2):
                 signal.channels[3] = 1300
-                print("yaw_left")
-                
+                print("yaw_left published")
+            elif(position[1] > 400):
+                signal.channels[2] = 1700
+            elif(position[1] < 120 and position[1] > 10):
+                signal.channels[2] = 1300
+            elif(position[2] > 80):
+                signal.channels[1] = 1300
+            elif(position[2] < -80):
+                signal.channels[1] = 1700
+
         rcpub.publish(signal)
-	
+        print("signal published")
+
 
         # older versions of PX4 always return success==True, so better to check Status instead
         if prev_state.armed != current_state.armed:
@@ -138,7 +148,6 @@ def main():
         if prev_state.mode != current_state.mode:
             rospy.loginfo("Current mode: %s" % current_state.mode)
         prev_state = current_state
-	print("pass 4")
         # Update timestamp and publish pose
         rate.sleep()
 
